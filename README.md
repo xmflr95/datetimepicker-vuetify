@@ -11,7 +11,37 @@ Vuetify 순정 기능을 이용하여 제작한 DatetimePicker입니다.
 
 
 ## DatetimePicker
-options:  
+### Example  
+```html
+<template>
+  <!-- default -->
+  <datetime-picker />
+
+  <!-- options setting -->
+  <datetime-picker
+    @dateTime="getDatetime"
+    label="Start Datetime"
+    preIcon
+  >
+  </datetime-picker>
+</template>
+
+<script>
+  // vue settings...
+  data() {
+    return {
+      datetime: '',
+    }
+  },
+  method: {
+    getDatetime(datetime) {
+      this.datetime = datetime; // Binds data from emit  a child-component
+    }
+  }
+  // ...vue settings
+</script>
+```
+###### options:  
   - **@dateTime**: 자식컴포넌트로부터 `datetime(:string)`을 받아옴, "Options to import `datetime(:String)` from child components"
   - **label**: v-text의 label 옵션, "v-text label option"
   - **disabled**: "disable option"
