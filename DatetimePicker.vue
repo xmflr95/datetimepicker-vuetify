@@ -15,13 +15,11 @@
             :label="label"
             persistent-hint
             color="blue darken-3"
-            v-bind="attrs"
-            @blur="getDateTime"
-            @keypress.enter="evtTextEnter($event)"
+            v-bind="attrs"            
+            @change="getDateTime"
             v-on="on"
             :prepend-icon="computedPreIcon"
             :disabled="disabled"
-            :readonly="readonly"
           ></v-text-field>
         </template>
         <template v-if="select.dateMenu">
@@ -35,6 +33,7 @@
             :month-format="getMonth"
             :title-date-format="getTitleDate"
             :header-date-format="getHeaderTitleMonth"
+            :type="computedMonthOption"
           ></v-date-picker>
         </template>
         <template v-if="select.timeMenu">
@@ -44,10 +43,11 @@
             use-seconds
             color="blue darken-1"
             header-color="blue darken-1"
+            :no-title="noTitle"
             @change="inputTime"
           ></v-time-picker>
         </template>
-        <template>
+        <template v-if="!chkDateOnly">
           <v-btn
             block
             elevation="2"
@@ -69,12 +69,28 @@ export default {
       type: Boolean,
       default: false,
     },
+    dateOnly: {
+      type: Boolean,
+      default: false,
+    },
+    noTitle: {
+      type: Boolean,
+      default: false,
+    },
+    monthOnly: {
+      type: Boolean,
+      default: false,
+    },
+    defaultTime: {
+      type: Boolean,
+      default: false,
+    },
   },
   components: {
   },
   data() {
     return {
-      noTitle: false,
+      // noTitle: false,
       // locale: 'ko-KR', // 날짜 뒤에 '일'이 붙어서 커스텀 필요
       btnContentData: ['날짜 선택', '시간 선택'],
       daysOfWeek: ['일', '월', '화', '수', '목', '금', '토'],
@@ -84,7 +100,7 @@ export default {
       menu: false,  // picker 활성화 여부    
       
       // datetime format 확인용
-      regDate: RegExp(/^\d{4}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01]) (0[1-9]|1[0-9]|2[0-4]):(0[1-9]|[1-5][0-9]):(0[1-9]|[1-5][0-9])$/),
+      regDate: RegExp(/^\d{4}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01]) (0[0-9]|1[0-9]|2[0-4]):(0[0-9]|[0-5][0-9]):(0[0-9]|[1-5][0-9])$/),
       // 날짜/시간 피커 열림 확인
       select: {
         dateMenu: true,
@@ -99,6 +115,11 @@ export default {
         time: '',
       },
       datetimeFormatted: '', // v-text-field 표시 데이터
+
+      // props 저장
+      chkDateOnly: this.dateOnly,
+      chkMonthOnly: this.monthOnly,
+      chkDefaultTime: this.defaultTime, // default time value(00:00:00)
     };
   },
   computed: {
@@ -121,19 +142,66 @@ export default {
     },
     computedPreIcon() {
       return this.preIcon ? "mdi-calendar": null;
-    }
+    },
+    computedMonthOption() {
+      if (!this.monthOnly) {
+        return "date";
+      }
+      this.chkDateOnly = true; // hide time-picker
+      return "month";
+    },
   },
   watch: {
     // 텍스트 필드값을 감시하여 실제 시간 Object값을 변경
     datetimeFormatted(_date) {
       if (this.regDate.test(_date)) {
-        // console.log('datetimeFormatted : ', _date);
         const [date, time] = _date.split(" ");
         this.datetime = { ...this.datetime, date: date, time: time };
       } else {
-        this.datetime = { ...this.datetime };
+        switch (_date.length) {
+          case 4:   // 년
+            if (/^\d{4}$/.test(_date)) {
+              this.datetime = { ...this.datetime, date: `${_date}-01-01`, time: '00:00:00' };
+            }
+            break;
+          case 7:   // 년-월
+            if (/^\d{4}-(0[1-9]|1[012])$/.test(_date)) {
+              const [year, month] = _date.split("-");
+              this.datetime = { ...this.datetime, date: `${year}-${month}-01`, time: '00:00:00' };
+            }
+            break;
+          case 10:  // 년-월-일
+          case 11:
+            if (/^\d{4}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])$/.test(_date)) {
+              const [year, month, day] = _date.split("-");
+              this.datetime = { ...this.datetime, date: `${year}-${month}-${day}`, time: '00:00:00' };
+            }
+            break;
+          case 13:  // 년-월-일 시간
+            if (/^\d{4}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01]) (0[0-9]|1[0-9]|2[0-4])$/.test(_date)) {
+              const [date, time] = _date.split(" ");
+              const [year, month, day] = date.split("-");
+              this.datetime = { ...this.datetime, date: `${year}-${month}-${day}`, time: `${time}:00:00` };
+            }
+            break;
+          case 16:
+            if (/^\d{4}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01]) (0[0-9]|1[0-9]|2[0-4]):(0[0-9]|[0-5][0-9])$/.test(_date)) {
+              const [date, time] = _date.split(" ");
+              const [year, month, day] = date.split("-");
+              const [hour, min] = time.split(":");
+              this.datetime = { ...this.datetime, date: `${year}-${month}-${day}`, time: `${hour}:${min}:00` };
+            }
+            break;
+          default:
+            const formatDate = this.nowDateISOString.substr(0, 10);
+            this.datetime = {
+              date: this.parseDate(formatDate),
+              time: '00:00:00',
+            };
+            break;
+        }
       }
-    }
+    },
   },
   methods: {
     parseDate(date) {
@@ -148,7 +216,6 @@ export default {
       const hour = date.getHours();
       const min = date.getMinutes();
       const sec = date.getSeconds();
-      // console.log(`${hour}:${min}:${sec}`);
 
       return `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
     },
@@ -160,7 +227,6 @@ export default {
 
       return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')} ${hour.padStart(2, '0')}:${min.padStart(2, '0')}:${sec.padStart(2, '0')}`;
     },
-
     /**
      * 캘린더 view 커스텀 부분
      */
@@ -183,15 +249,14 @@ export default {
       const week = new Date(date).getDay(date);
       return `${this.monthName[month]} ${day}일 ${this.daysOfWeek[week]}요일`;
     },
-
     // enter 이벤트 blur로 넘김
     evtTextEnter(e) {
       if (this.menu) {
         this.menu = false; // 피커 닫기
       }
-      e.target.blur();
+      // e.target.blur();
+      this.getDateTime();
     },
-
     /**
      * 버튼 이벤트(시간/날짜 선택)
      */
@@ -205,14 +270,20 @@ export default {
       }
     },
     inputDate(date) {
-      // console.log("inputDate : ", date);
+      if (this.chkDefaultTime) {
+        this.datetime = { ...this.datetime, time: '00:00:00' };
+      }
       this.datetimeFormatted = this.setDatetimeText(this.datetime);
       this.menu = false; // 피커 닫기
-      // this.$emit('dateTime', dateTime); // 상위 컴포넌트로 전달
       this.emitDateTime(this.datetimeFormatted); // 상위 컴포넌트로 전달
     },
-
     getDateTime() {
+      if (this.menu) {
+        this.menu = false; // 피커 닫기
+      }
+      if (this.chkDefaultTime) {
+        this.datetime = { ...this.datetime, time: '00:00:00' };
+      }
       this.datetimeFormatted = this.setDatetimeText(this.datetime);
       this.emitDateTime(this.datetimeFormatted); // 상위 컴포넌트로 전달
     },
@@ -222,14 +293,12 @@ export default {
       this.datetimeFormatted = this.setDatetimeText(this.datetime);
       this.emitDateTime(this.datetimeFormatted); // 상위 컴포넌트로 전달
     },
-
     /**
      * 상위 컴포넌트로 datetime 값 전달
      */
     emitDateTime(datetime) {
       this.$emit('dateTime', datetime);
     },
-
     /**
      * 데이터 객체를 문자열 규칙으로 변경
      * @param datetime: Object
@@ -239,7 +308,13 @@ export default {
       const { date, time } = datetime;
       const [year, month, day] = date.split("-");
       const [hour, min, sec] = time.split(":");
-      // console.log(`spread date : ${year}-${month}-${day} ${hour}:${min}:${sec}`);
+
+      if (this.monthOnly) { // on month-only option
+        return `${year.padStart(4, '0')}-${month.padStart(2, '0')}`;
+      }
+      if (this.chkDateOnly) {
+        return `${year.padStart(4, '0')}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+      }
       return `${year.padStart(4, '0')}-${month.padStart(2, '0')}-${day.padStart(2, '0')} ${hour.padStart(2, '0')}:${min.padStart(2, '0')}:${sec.padStart(2, '0')}`;
     },
   },
@@ -253,10 +328,10 @@ export default {
 
   .v-time-picker-title__time  {
     .v-picker__title__btn {
-      font-size: 56px
+      font-size: 56px;
     }
     span {
-      font-size: 56px
+      font-size: 56px;
     }
   }
 </style>
